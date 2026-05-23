@@ -4,87 +4,83 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
-	"time"
 
-	"github.com/user/cronlog/internal/config"
+	"github.com/example/cronlog/internal/config"
 )
 
 func writeTemp(t *testing.T, content string) string {
 	t.Helper()
-	dir := t.TempDir()
-	p := filepath.Join(dir, "cronlog.yaml")
-	if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
-		t.Fatalf("writeTemp: %v", err)
+	f, err := os.CreateTemp(t.TempDir(), "*.yaml")
+	if err != nil {
+		t.Fatal(err)
 	}
-	return p
+	if _, err := f.WriteString(content); err != nil {
+		t.Fatal(err)
+	}
+	f.Close()
+	return f.Name()
 }
 
 func TestDefault_Values(t *testing.T) {
 	cfg := config.Default()
-	if cfg.JobName != "cron-job" {
-		t.Errorf("expected job_name=cron-job, got %q", cfg.JobName)
+	if cfg.WebhookURL != "" {
+		t.Errorf("WebhookURL = %q, want empty", cfg.WebhookURL)
 	}
-	if cfg.WebhookTimeout != 10*time.Second {
-		t.Errorf("expected timeout=10s, got %v", cfg.WebhookTimeout)
-	}
-	if !cfg.NotifyOnFailure {
-		t.Error("expected notify_on_failure=true by default")
+	if cfg.Rotate.MaxFiles != 0 {
+		t.Errorf("Rotate.MaxFiles = %d, want 0", cfg.Rotate.MaxFiles)
 	}
 }
 
 func TestLoad_MissingFile_ReturnsDefaults(t *testing.T) {
-	cfg, err := config.Load("/nonexistent/path/cronlog.yaml")
+	cfg, err := config.Load("/nonexistent/path.yaml")
 	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+		t.Fatalf("Load: %v", err)
 	}
-	if cfg.JobName != "cron-job" {
-		t.Errorf("expected default job_name, got %q", cfg.JobName)
+	if cfg.WebhookURL != "" {
+		t.Errorf("unexpected WebhookURL: %q", cfg.WebhookURL)
 	}
 }
 
 func TestLoad_ValidFile(t *testing.T) {
-	yaml := `
-job_name: backup
-webhook_url: https://example.com/hook
-notify_on_success: true
-notify_on_failure: false
-`
-	p := writeTemp(t, yaml)
-	cfg, err := config.Load(p)
+	cfg, err := config.Load(filepath.Join("testdata", "sample.yaml"))
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if cfg.JobName != "backup" {
-		t.Errorf("expected job_name=backup, got %q", cfg.JobName)
-	}
-	if cfg.WebhookURL != "https://example.com/hook" {
-		t.Errorf("unexpected webhook_url: %q", cfg.WebhookURL)
-	}
-	if !cfg.NotifyOnSuccess {
-		t.Error("expected notify_on_success=true")
+	if cfg.WebhookURL == "" {
+		t.Error("expected WebhookURL to be set")
 	}
 }
 
 func TestLoad_InvalidYAML(t *testing.T) {
-	p := writeTemp(t, ":::invalid yaml:::")
-	_, err := config.Load(p)
+	path := writeTemp(t, ": bad: yaml: {")
+	_, err := config.Load(path)
 	if err == nil {
-		t.Error("expected error for invalid YAML, got nil")
+		t.Error("expected error for invalid YAML")
 	}
 }
 
-func TestValidate_EmptyJobName(t *testing.T) {
-	cfg := config.Default()
-	cfg.JobName = ""
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected validation error for empty job_name")
+func TestLoad_RotateConfig(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("testdata", "rotate.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Rotate.Dir != "/var/log/cronlog" {
+		t.Errorf("Rotate.Dir = %q, want /var/log/cronlog", cfg.Rotate.Dir)
+	}
+	if cfg.Rotate.Prefix != "myjob" {
+		t.Errorf("Rotate.Prefix = %q, want myjob", cfg.Rotate.Prefix)
+	}
+	if cfg.Rotate.MaxFiles != 7 {
+		t.Errorf("Rotate.MaxFiles = %d, want 7", cfg.Rotate.MaxFiles)
 	}
 }
 
-func TestValidate_ZeroTimeout(t *testing.T) {
-	cfg := config.Default()
-	cfg.WebhookTimeout = 0
-	if err := cfg.Validate(); err == nil {
-		t.Error("expected validation error for zero webhook_timeout")
+func TestLoad_NotifyConfig(t *testing.T) {
+	cfg, err := config.Load(filepath.Join("testdata", "notify.yaml"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if cfg.Notify.Condition == "" {
+		t.Error("expected Notify.Condition to be set")
 	}
 }

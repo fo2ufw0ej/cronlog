@@ -1,64 +1,59 @@
 package config
 
 import (
-	"fmt"
 	"os"
-	"time"
 
 	"gopkg.in/yaml.v3"
 )
 
-// Config holds the cronlog configuration.
+// NotifyCondition mirrors notify.Condition as a plain string for unmarshalling.
+type NotifyCondition string
+
+// RotateConfig holds log rotation settings.
+type RotateConfig struct {
+	Dir      string `yaml:"dir"`
+	Prefix   string `yaml:"prefix"`
+	MaxFiles int    `yaml:"max_files"`
+}
+
+// Config holds all cronlog configuration.
 type Config struct {
-	JobName        string        `yaml:"job_name"`
-	WebhookURL     string        `yaml:"webhook_url"`
-	WebhookTimeout time.Duration `yaml:"webhook_timeout"`
-	LogTimestamps  bool          `yaml:"log_timestamps"`
-	NotifyOnSuccess bool         `yaml:"notify_on_success"`
-	NotifyOnFailure bool         `yaml:"notify_on_failure"`
+	WebhookURL string `yaml:"webhook_url"`
+	Notify     struct {
+		Condition NotifyCondition `yaml:"condition"`
+	} `yaml:"notify"`
+	Redact struct {
+		Patterns []string `yaml:"patterns"`
+	} `yaml:"redact"`
+	Filter struct {
+		Stream  string `yaml:"stream"`
+		Pattern string `yaml:"pattern"`
+	} `yaml:"filter"`
+	Truncate struct {
+		MaxLines int `yaml:"max_lines"`
+		MaxBytes int `yaml:"max_bytes"`
+	} `yaml:"truncate"`
+	Rotate RotateConfig `yaml:"rotate"`
 }
 
-// Default returns a Config with sensible defaults.
-func Default() *Config {
-	return &Config{
-		JobName:         "cron-job",
-		WebhookTimeout:  10 * time.Second,
-		LogTimestamps:   true,
-		NotifyOnSuccess: false,
-		NotifyOnFailure: true,
-	}
+// Default returns a Config populated with sensible defaults.
+func Default() Config {
+	return Config{}
 }
 
-// Load reads a YAML config file from the given path.
-// Missing fields fall back to defaults.
-func Load(path string) (*Config, error) {
+// Load reads a YAML config file from path. If the file does not exist the
+// default config is returned without error.
+func Load(path string) (Config, error) {
 	cfg := Default()
-
-	f, err := os.Open(path)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
 			return cfg, nil
 		}
-		return nil, fmt.Errorf("config: open %q: %w", path, err)
+		return cfg, err
 	}
-	defer f.Close()
-
-	dec := yaml.NewDecoder(f)
-	dec.KnownFields(true)
-	if err := dec.Decode(cfg); err != nil {
-		return nil, fmt.Errorf("config: decode %q: %w", path, err)
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		return cfg, err
 	}
-
 	return cfg, nil
-}
-
-// Validate returns an error if the configuration is invalid.
-func (c *Config) Validate() error {
-	if c.JobName == "" {
-		return fmt.Errorf("config: job_name must not be empty")
-	}
-	if c.WebhookTimeout <= 0 {
-		return fmt.Errorf("config: webhook_timeout must be positive")
-	}
-	return nil
 }

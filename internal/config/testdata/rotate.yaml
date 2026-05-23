@@ -1,0 +1,4 @@
+rotate:
+  dir: /var/log/cronlog
+  prefix: myjob
+  max_files: 7
