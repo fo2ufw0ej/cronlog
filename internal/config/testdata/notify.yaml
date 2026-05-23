@@ -1,0 +1,4 @@
+webhook_url: "https://hooks.example.com/abc123"
+notify_on: "failure"
+format: "json"
+timezone: "UTC"
