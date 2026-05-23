@@ -29,6 +29,8 @@ func New(log *logger.Logger) *Runner {
 
 // Run executes the given command with args, streaming stdout and stderr
 // through the logger. It returns a Result regardless of exit status.
+// If the command fails to start (e.g. binary not found), an error is returned
+// along with a partial Result containing timing and any collected entries.
 func (r *Runner) Run(command string, args ...string) (*Result, error) {
 	cmd := exec.Command(command, args...)
 	cmd.Stdout = r.log.Writer("stdout")
@@ -63,4 +65,15 @@ func (r *Result) Duration() time.Duration {
 // Success returns true if the command exited with code 0.
 func (r *Result) Success() bool {
 	return r.ExitCode == 0
+}
+
+// StderrEntries returns only the log entries captured from stderr.
+func (r *Result) StderrEntries() []logger.Entry {
+	var entries []logger.Entry
+	for _, e := range r.Entries {
+		if e.Stream == "stderr" {
+			entries = append(entries, e)
+		}
+	}
+	return entries
 }
