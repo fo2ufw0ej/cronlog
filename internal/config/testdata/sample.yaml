@@ -1,0 +1,7 @@
+# Sample cronlog configuration
+job_name: my-backup-job
+webhook_url: https://hooks.example.com/cronlog
+webhook_timeout: 15s
+log_timestamps: true
+notify_on_success: true
+notify_on_failure: true
