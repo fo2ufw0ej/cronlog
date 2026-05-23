@@ -1,0 +1,7 @@
+redact:
+  patterns:
+    - "mysecrettoken"
+    - "api_key_value"
+  regexps:
+    - 'password=\S+'
+    - 'token=[A-Za-z0-9]+'
